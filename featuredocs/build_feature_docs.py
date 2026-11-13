@@ -315,6 +315,20 @@ def extract_ui_inventory(target_files: list[Path]) -> str:
     )
 
 
+def list_existing_images(feature_name: str) -> str:
+    """List the screenshots already captured for this feature in images/."""
+    names = sorted(
+        path.name
+        for path in IMAGES_DIR.glob(f"{feature_name}-*.png")
+        if path.name != f"{feature_name}-main.png"
+    )
+    return (
+        "\n".join(f"- images/{name}" for name in names)
+        if names
+        else "(None yet - use the naming rule above.)"
+    )
+
+
 def prepare_docs(feature_name: str, filelist_path: Path, parent_branch: str) -> None:
     """Generate the AI prompt file and initialize README_<feature>.md if missing."""
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -323,6 +337,7 @@ def prepare_docs(feature_name: str, filelist_path: Path, parent_branch: str) -> 
     file_list_str = "\n".join(f"- {p.as_posix()}" for p in target_files)
     gpr_text = collect_gpr_contents(target_files)
     ui_text = extract_ui_inventory(target_files)
+    images_text = list_existing_images(feature_name)
     diff_text = get_git_diff(parent_branch, target_files)
 
     prompt_path = FEATUREDOCS_DIR / f"{feature_name}_prompt.txt"
@@ -354,6 +369,8 @@ Save your output into: {readme_path.as_posix()}
      `-save` or `-complete` when one button opens more than one window
      (e.g. `{feature_name}-generate-report-save.png`, `{feature_name}-generate-report.png`).
    - Captions must name the window by its title from the UI Inventory and say what to capture.
+   - Screenshots that already exist are listed under "Existing Screenshots" below. When one of them shows the window
+     you are illustrating (judge by its name), use that exact filename instead of making up a new one.
    - Reference each image exactly once. Do NOT add a gallery or repeat images at the end of the page.
 7. Write button labels without the GTK mnemonic underscore (**Close**, not **_Close**).
 8. Do not invent menu paths, buttons, or options not present in the diff or UI Inventory. If a menu path is inherited and unclear, mark it `[VERIFY MENU PATH]`.
@@ -366,6 +383,9 @@ Save your output into: {readme_path.as_posix()}
 
 ### UI Inventory (window titles and buttons extracted from the code, grouped by the function that creates them):
 {ui_text}
+
+### Existing Screenshots (already captured in featuredocs/images/; the header's {feature_name}-main.png is not listed):
+{images_text}
 
 ### Isolated Feature Diff (against {parent_branch}):
 {diff_text}
