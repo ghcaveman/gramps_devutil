@@ -58,6 +58,8 @@ Options:
 """
 
 import argparse
+import ast
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -127,6 +129,192 @@ def collect_gpr_contents(target_files: list[Path]) -> str:
     )
 
 
+# ------------------------------------------------------------
+#
+# UI inventory (window titles and buttons found in the code)
+#
+# ------------------------------------------------------------
+# Calls whose string argument is a button label.
+BUTTON_CALLS = {
+    "Button",
+    "CheckButton",
+    "RadioButton",
+    "ToggleButton",
+    "new_with_label",
+    "new_with_mnemonic",
+    "new_with_label_from_widget",
+    "new_with_mnemonic_from_widget",
+}
+# Calls that add labelled buttons to a dialog's action area.
+ACTION_AREA_CALLS = {"add_button", "add_buttons"}
+# Gramps message dialogs: first argument is the title, later ones may be
+# button labels.
+MESSAGE_DIALOGS = {
+    "OkDialog": 0,
+    "ErrorDialog": 0,
+    "WarningDialog": 0,
+    "QuestionDialog": 2,
+    "QuestionDialog2": 2,
+}
+
+
+def _translated_text(node: ast.AST) -> str | None:
+    """Return the literal text of ``"x"``, ``_("x")``, ``str(_("x"))`` or ``_("x %d") % n``."""
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod):
+        node = node.left
+    while (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in ("str", "_", "gettext", "sgettext")
+        and len(node.args) == 1
+    ):
+        node = node.args[0]
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _strip_mnemonic(label: str) -> str:
+    """Drop the GTK mnemonic underscore (``_Close`` -> ``Close``)."""
+    return re.sub(r"_(?=\w)", "", label, count=1)
+
+
+def _call_name(node: ast.Call) -> str:
+    func = node.func
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    if isinstance(func, ast.Name):
+        return func.id
+    return ""
+
+
+class _UiVisitor(ast.NodeVisitor):
+    """Collect (scope, line, kind, text) entries in source order."""
+
+    def __init__(self) -> None:
+        self.scope: list[str] = []
+        self.entries: list[tuple[str, int, str, str]] = []
+
+    def _add(self, node: ast.AST, kind: str, text: str | None) -> None:
+        if text and text.strip():
+            scope = ".".join(self.scope) or "(module)"
+            self.entries.append((scope, node.lineno, kind, text.strip()))
+
+    def _visit_scope(self, node: ast.AST, name: str) -> None:
+        self.scope.append(name)
+        self.generic_visit(node)
+        self.scope.pop()
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._visit_scope(node, node.name)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_scope(node, node.name)
+
+    visit_AsyncFunctionDef = visit_FunctionDef  # type: ignore[assignment]
+
+    def visit_Tuple(self, node: ast.Tuple) -> None:
+        # ("key", _("Label")) pairs are the usual way a tool declares the
+        # buttons of its main window (and also combo-box choices).
+        if (
+            len(node.elts) == 2
+            and isinstance(node.elts[0], ast.Constant)
+            and isinstance(node.elts[0].value, str)
+            and isinstance(node.elts[1], ast.Call)
+        ):
+            self._add(
+                node, "list item (button or choice)", _translated_text(node.elts[1])
+            )
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        name = _call_name(node)
+        for kw in node.keywords:
+            if kw.arg == "title":
+                self._add(node, "window title", _translated_text(kw.value))
+            elif kw.arg == "label" and name in BUTTON_CALLS:
+                self._add(
+                    node, "button", _strip_mnemonic(_translated_text(kw.value) or "")
+                )
+        if name in BUTTON_CALLS and node.args:
+            # new_with_label_from_widget(group, label): the label comes second.
+            label_arg = node.args[1] if name.endswith("_from_widget") else node.args[0]
+            if len(node.args) > 1 or not name.endswith("_from_widget"):
+                self._add(
+                    node, "button", _strip_mnemonic(_translated_text(label_arg) or "")
+                )
+        elif name in ACTION_AREA_CALLS:
+            # add_button(label, response) / add_buttons(l1, r1, l2, r2, ...)
+            for arg in node.args[::2]:
+                self._add(
+                    node, "dialog button", _strip_mnemonic(_translated_text(arg) or "")
+                )
+        elif name == "set_title" and node.args:
+            self._add(node, "window title", _translated_text(node.args[0]))
+        elif name in MESSAGE_DIALOGS and node.args:
+            self._add(node, "message title", _translated_text(node.args[0]))
+            first_button = MESSAGE_DIALOGS[name]
+            if first_button:
+                for arg in node.args[first_button:]:
+                    self._add(
+                        node,
+                        "dialog button",
+                        _strip_mnemonic(_translated_text(arg) or ""),
+                    )
+        self.generic_visit(node)
+
+
+def is_test_file(rel_path: Path) -> bool:
+    """True for unit-test modules, which hold no end-user UI."""
+    name = rel_path.name
+    return (
+        name.startswith("test_")
+        or name.endswith(("_test.py", "_tests.py"))
+        or "test" in rel_path.parts[:-1]
+    )
+
+
+def extract_ui_inventory(target_files: list[Path]) -> str:
+    """
+    List the window titles and button labels found in the changed .py files.
+
+    The entries are grouped by the class/function that creates them, in source
+    order, so the documentation writer can see which buttons belong to which
+    window without reading the whole diff.
+    """
+    blocks = []
+    for rel_path in target_files:
+        if rel_path.suffix != ".py" or rel_path.name.endswith(".gpr.py"):
+            continue
+        if is_test_file(rel_path):
+            continue
+        full_path = REPO_ROOT / rel_path
+        if not full_path.is_file():
+            continue
+        try:
+            tree = ast.parse(full_path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError) as err:
+            blocks.append(f"--- {rel_path.as_posix()} ---\n(could not parse: {err})")
+            continue
+        visitor = _UiVisitor()
+        visitor.visit(tree)
+        if not visitor.entries:
+            continue
+        lines = [f"--- {rel_path.as_posix()} ---"]
+        current_scope = None
+        for scope, lineno, kind, text in visitor.entries:
+            if scope != current_scope:
+                lines.append(f"{scope}:")
+                current_scope = scope
+            lines.append(f"  line {lineno}: {kind}: {text}")
+        blocks.append("\n".join(lines))
+    return (
+        "\n\n".join(blocks)
+        if blocks
+        else "(No window titles or buttons found in the changed .py files.)"
+    )
+
+
 def prepare_docs(feature_name: str, filelist_path: Path, parent_branch: str) -> None:
     """Generate the AI prompt file and initialize README_<feature>.md if missing."""
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -134,6 +322,7 @@ def prepare_docs(feature_name: str, filelist_path: Path, parent_branch: str) -> 
 
     file_list_str = "\n".join(f"- {p.as_posix()}" for p in target_files)
     gpr_text = collect_gpr_contents(target_files)
+    ui_text = extract_ui_inventory(target_files)
     diff_text = get_git_diff(parent_branch, target_files)
 
     prompt_path = FEATUREDOCS_DIR / f"{feature_name}_prompt.txt"
@@ -152,15 +341,31 @@ Save your output into: {readme_path.as_posix()}
    - `## Usage` (numbered steps starting from the exact Gramps menu or Gramplet bar)
    - `## Configure Options` (bulleted list matching every GUI control/option in the code)
    - `## Features` (bulleted list of key capabilities)
-5. Where screenshots are helpful, insert Markdown image tags using this exact collision-proof naming format:
+5. Use the UI Inventory below to find the tool's main window (the one its menu entry opens) and the buttons on it, in the order they appear on screen.
+   In `## Usage`, list EVERY button of the main window (including action-area buttons such as "Accept all hints", but not Close/Cancel), with one line on what it does.
+   Then add one `### <Button label>` subsection per button, in the same order, with numbered steps that follow the code
+   (for example, if a file chooser opens before a report window, say so in that order).
+6. Screenshots - insert Markdown image tags using this exact collision-proof naming format:
    `![Caption describing what to capture](images/{feature_name}-<short-name>.png)`
-6. Do not invent menu paths or options not present in the diff. If a menu path is inherited and unclear, mark it `[VERIFY MENU PATH]`.
+   - The page header already shows `images/{feature_name}-main.png` (the main window as it first opens). Do NOT reference
+     `{feature_name}-main.png` again, and do NOT add a screenshot of the Gramps menu.
+   - In each button's subsection, add one screenshot for each window or dialog that button opens, placed at the step where it
+     appears. Name it after the button: `{feature_name}-<button-label-in-kebab-case>.png`, adding a suffix such as `-preview`,
+     `-save` or `-complete` when one button opens more than one window
+     (e.g. `{feature_name}-generate-report-save.png`, `{feature_name}-generate-report.png`).
+   - Captions must name the window by its title from the UI Inventory and say what to capture.
+   - Reference each image exactly once. Do NOT add a gallery or repeat images at the end of the page.
+7. Write button labels without the GTK mnemonic underscore (**Close**, not **_Close**).
+8. Do not invent menu paths, buttons, or options not present in the diff or UI Inventory. If a menu path is inherited and unclear, mark it `[VERIFY MENU PATH]`.
 
 ### Feature Files (from {filelist_path.name}):
 {file_list_str}
 
 ### Plugin Registration Metadata (.gpr.py):
 {gpr_text}
+
+### UI Inventory (window titles and buttons extracted from the code, grouped by the function that creates them):
+{ui_text}
 
 ### Isolated Feature Diff (against {parent_branch}):
 {diff_text}
@@ -172,8 +377,6 @@ Save your output into: {readme_path.as_posix()}
         starter_md = f"""## Overview
 
 Describe what **{feature_name}** does and what genealogical workflow it improves.
-
-![{feature_name} main dialog](images/{feature_name}-main.png)
 
 ## Usage
 
@@ -206,9 +409,8 @@ def render_header_template(
     header_text: str, feature_name: str, plugin_display_name: str
 ) -> str:
     """Replace feature-specific placeholders in the MediaWiki header."""
-    return (
-        header_text.replace("<PluginName>", feature_name)
-        .replace("<Plugin Display Name>", plugin_display_name)
+    return header_text.replace("<PluginName>", feature_name).replace(
+        "<Plugin Display Name>", plugin_display_name
     )
 
 
