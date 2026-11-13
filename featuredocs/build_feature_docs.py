@@ -52,6 +52,7 @@ Usage:
 Options:
   --filelist PATH   Path to changed_files.txt (default: ./changed_files.txt)
   --parent BRANCH   Parent git branch for isolated diff (default: maintenance/gramps61)
+  --plugin-display-name NAME   Display name used to fill the header template
   --prepare         Generate AI prompt from changed_files.txt + git diff and init README_<feature>.md
   --build           Convert README_<feature>.md -> <feature>.mediawiki and run image check
 """
@@ -201,7 +202,19 @@ Describe what **{feature_name}** does and what genealogical workflow it improves
     )
 
 
-def build_wiki_and_audit(feature_name: str) -> int:
+def render_header_template(
+    header_text: str, feature_name: str, plugin_display_name: str
+) -> str:
+    """Replace feature-specific placeholders in the MediaWiki header."""
+    return (
+        header_text.replace("<PluginName>", feature_name)
+        .replace("<Plugin Display Name>", plugin_display_name)
+    )
+
+
+def build_wiki_and_audit(
+    feature_name: str, plugin_display_name: str | None = None
+) -> int:
     """Convert README_<feature>.md -> <feature>.mediawiki with templates and audit images."""
     readme_path = FEATUREDOCS_DIR / f"README_{feature_name}.md"
     mediawiki_path = FEATUREDOCS_DIR / f"{feature_name}.mediawiki"
@@ -231,6 +244,11 @@ def build_wiki_and_audit(feature_name: str) -> int:
 
     header_text = (
         header_path.read_text(encoding="utf-8") + "\n" if header_path.is_file() else ""
+    )
+    header_text = render_header_template(
+        header_text,
+        feature_name,
+        plugin_display_name or feature_name.replace("_", " "),
     )
     footer_text = (
         "\n" + footer_path.read_text(encoding="utf-8") if footer_path.is_file() else ""
@@ -334,6 +352,10 @@ def main() -> None:
         action="store_true",
         help="Convert README_.md with templates into .mediawiki and check missing images",
     )
+    parser.add_argument(
+        "--plugin-display-name",
+        help="Display name to use in the MediaWiki header template",
+    )
     args = parser.parse_args()
     # Ensure at least one action is specified
     if not args.prepare and not args.build:
@@ -354,7 +376,7 @@ def main() -> None:
             sys.exit(1)
 
     if args.build:
-        exit_code = build_wiki_and_audit(args.feature)
+        exit_code = build_wiki_and_audit(args.feature, args.plugin_display_name)
         if exit_code == 0:
             print("[BUILD] Completed successfully.")
         else:

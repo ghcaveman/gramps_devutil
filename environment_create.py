@@ -29,17 +29,17 @@ import argparse
 import json
 import logging
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 LOG = logging.getLogger(__name__)
 
-# Default MSYS2 location – can be overridden via a command‑line argument.
+# MSYS2 locations used on the two machines.
 DEFAULT_MSYS_ROOT = Path(r"C:\Program Files\Msys64")
+WORK_MSYS_ROOT = Path(r"C:\msys64")
 MSYS_ROOT = DEFAULT_MSYS_ROOT
-MSYS_PYTHON = MSYS_ROOT / "mingw64" / "bin" / "python3.exe"
+MSYS_PYTHON = MSYS_ROOT / "mingw64" / "bin" / "python.exe"
 MSYS_PATHS = [
     str(MSYS_ROOT / "mingw64" / "bin"),
     str(MSYS_ROOT / "ucrt64" / "bin"),
@@ -50,8 +50,7 @@ MSYS_PATHS = [
 def _build_launch_json() -> dict:
     """Create the VS Code launch configuration using the current MSYS settings.
 
-    This function is called after argument parsing so that a user‑supplied
-    ``--work`` flag can change ``MSYS_ROOT`` before the JSON is built.
+    This function is called after selecting the installed MSYS2 environment.
     """
     return {
         "version": "0.2.0",
@@ -88,14 +87,47 @@ SETTINGS_JSON = {
 # Helpers
 #
 # ------------------------------------------------------------
-def find_msys_python() -> Path:
-    """Return MSYS2 mingw64 python, falling back to PATH."""
-    if MSYS_PYTHON.is_file():
-        return MSYS_PYTHON
-    found = shutil.which("python3")
-    if found:
-        return Path(found)
-    raise FileNotFoundError("MSYS2 python not found at %s." % MSYS_PYTHON)
+def find_msys_python(preferred_root: Path | None = None) -> Path:
+    """Find MSYS2 Python, accepting both common executable names.
+
+    If MSYS2 is not installed, use the interpreter running this script rather
+    than a potentially unrelated ``python3`` command on PATH.
+    """
+    roots = (
+        (preferred_root,)
+        if preferred_root is not None
+        else (DEFAULT_MSYS_ROOT, WORK_MSYS_ROOT)
+    )
+    for root in roots:
+        for executable in ("python.exe", "python3.exe"):
+            candidate = root / "mingw64" / "bin" / executable
+            if candidate.is_file():
+                _set_msys_root(root, candidate)
+                return candidate
+
+    root = preferred_root or DEFAULT_MSYS_ROOT
+    interpreter = Path(sys.executable)
+    LOG.warning(
+        "MSYS2 Python not found under %s or %s; using the current interpreter %s.",
+        DEFAULT_MSYS_ROOT,
+        WORK_MSYS_ROOT,
+        interpreter,
+    )
+    _set_msys_root(root, interpreter)
+    return interpreter
+
+
+def _set_msys_root(root: Path, interpreter: Path) -> None:
+    """Update paths used by the build and generated VS Code configuration."""
+    global MSYS_ROOT, MSYS_PYTHON, MSYS_PATHS, LAUNCH_JSON
+    MSYS_ROOT = root
+    MSYS_PYTHON = interpreter
+    MSYS_PATHS = [
+        str(root / "mingw64" / "bin"),
+        str(root / "ucrt64" / "bin"),
+        str(root / "usr" / "bin"),
+    ]
+    LAUNCH_JSON = _build_launch_json()
 
 
 def write_vscode(target: Path) -> None:
@@ -113,20 +145,41 @@ def resources_ok(target: Path) -> bool:
 
 
 def build_resources(target: Path, msys_python: Path) -> None:
-    """Run wheel build whose hook generates build/share."""
+    """Run the wheel build, installing its ``build`` module if necessary."""
     env = os.environ.copy()
     env["PATH"] = os.pathsep.join(MSYS_PATHS + [env.get("PATH", "")])
     cmd = [str(msys_python), "-m", "build", "--wheel", "--no-isolation"]
     LOG.info("Building resources in %s ...", target)
+    probe = subprocess.run(
+        [
+            str(msys_python),
+            "-c",
+            "import importlib.util; print(importlib.util.find_spec('build') is not None)",
+        ],
+        cwd=str(target),
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    if probe.stdout.strip() == "False":
+        install_cmd = [str(msys_python), "-m", "pip", "install", "build"]
+        LOG.warning("'build' module not found; attempting to install it.")
+        LOG.info("Installing 'build' module via pip: %s", " ".join(install_cmd))
+        subprocess.run(install_cmd, cwd=str(target), env=env, check=True)
     subprocess.run(cmd, cwd=str(target), env=env, check=True)
 
 
-def create_environment(target: Path, no_build: bool = False) -> None:
+def create_environment(
+    target: Path,
+    no_build: bool = False,
+    msys_root: Path | None = None,
+) -> None:
     """Create everything needed for F5 in a Gramps checkout."""
     target = target.resolve()
     if not (target / "Gramps.py").is_file():
         raise ValueError("Not a Gramps checkout: %s" % target)
-    msys_python = find_msys_python()
+    msys_python = find_msys_python(msys_root)
     LOG.info("Target: %s", target)
     write_vscode(target)
     if resources_ok(target):
@@ -161,21 +214,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    # Adjust MSYS_ROOT if the user requested the work location.
-    global MSYS_ROOT, MSYS_PYTHON, MSYS_PATHS, LAUNCH_JSON
-    if args.mode:
-        MSYS_ROOT = Path(r"C:\msys64")
-        MSYS_PYTHON = MSYS_ROOT / "mingw64" / "bin" / "python3.exe"
-        MSYS_PATHS = [
-            str(MSYS_ROOT / "mingw64" / "bin"),
-            str(MSYS_ROOT / "ucrt64" / "bin"),
-            str(MSYS_ROOT / "usr" / "bin"),
-        ]
-        # Re‑build the launch configuration with the new paths.
-        LAUNCH_JSON = _build_launch_json()
+    preferred_root = WORK_MSYS_ROOT if args.mode else None
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     try:
-        create_environment(Path(args.target), no_build=args.no_build)
+        create_environment(
+            Path(args.target),
+            no_build=args.no_build,
+            msys_root=preferred_root,
+        )
     except Exception as exc:
         LOG.error("%s", exc)
         return 1

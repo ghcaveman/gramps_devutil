@@ -129,11 +129,11 @@ def audit_images(doc_path: Path, images_dir: Path) -> int:
     for fname, caption in unique_items:
         target = images_dir / fname
         if target.is_file():
-            status = "[EXISTS] "
+            status = "[EXISTS]"
         else:
             status = "[MISSING]"
             missing_count += 1
-        print(f"  {status} {fname}")
+        print(f"  {status}  {fname}")
         print(f"             Capture: {caption}")
 
     print("-" * 68)
