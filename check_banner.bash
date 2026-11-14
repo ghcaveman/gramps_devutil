@@ -24,7 +24,12 @@ if [[ -f "$CHANGED_FILE" ]]; then
     INITIAL_EXISTS=1
 fi
 BANNER_FILE="banner_template.txt"
-BANNER_TMP=$(mktemp)
+BANNER_TMP=$(mktemp 2>/dev/null) || BANNER_TMP=$(env -u TMPDIR mktemp 2>/dev/null)
+if [[ -z "$BANNER_TMP" ]]; then
+    error "Cannot create temporary file (check TMPDIR)"
+    exit 1
+fi
+
 
 error() {
     echo "ERROR: $*" >&2
@@ -57,6 +62,15 @@ fi
 # ---- Step 2: Load the banner template ------------------------------------
 sed -e ':a' -e 'N' -e '$!ba' -e 's/\n\+$//' "$BANNER_FILE" > "$BANNER_TMP"
 
+# Normalize CRLF/LF so the banner check works on Windows (CRLF) and Unix (LF) alike.
+BANNER_NORM=$(mktemp 2>/dev/null) || BANNER_NORM=$(env -u TMPDIR mktemp 2>/dev/null)
+if [[ -z "$BANNER_NORM" ]]; then
+    error "Cannot create temporary file (check TMPDIR)"
+    exit 1
+fi
+
+tr -d '\r' < "$BANNER_TMP" > "$BANNER_NORM"
+
 # ---- Step 3: Verify each changed file ------------------------------------
 FAIL=0
 HEADER_PRINTED=0
@@ -69,8 +83,8 @@ while IFS= read -r pyfile; do
         continue
     fi
     banner_line_count=$(wc -l < "$BANNER_TMP")
-    head -n "$banner_line_count" "$pyfile" > "$pyfile.tmp.banner"
-    if ! cmp -s "$BANNER_TMP" "$pyfile.tmp.banner"; then
+    head -n "$banner_line_count" "$pyfile" | tr -d "\r" > "$pyfile.tmp.banner"
+    if ! cmp -s "$BANNER_NORM" "$pyfile.tmp.banner"; then
         # Print a header once, then list only the filenames for mismatched headers
         if [[ $HEADER_PRINTED -eq 0 ]]; then
             echo "Files missing copyright banner:"
@@ -82,7 +96,7 @@ while IFS= read -r pyfile; do
     rm -f "$pyfile.tmp.banner"
 done < "$CHANGED_FILE"
 
-rm -f "$BANNER_TMP"
+rm -f "$BANNER_TMP" "$BANNER_NORM"
 # Clean up the generated list file if it was created by this script.
 if [[ $INITIAL_EXISTS -eq 0 ]]; then
     rm -f "$CHANGED_FILE"
