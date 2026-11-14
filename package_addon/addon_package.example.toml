@@ -1,0 +1,94 @@
+# addon_package.toml -- describes one Gramps addon for package_addon.py.
+#
+# Put this file (named addon_package.toml) in the feature repo root, next to
+# package_addon.py. A repo that builds more than one addon gets one file per
+# addon, e.g. addon_package.toml and addon_package_mediafix.toml, and picks
+# one with --config. All paths are repo-relative with forward slashes.
+#
+# Globs: * and ? stay within one folder, ** spans folders. __init__.py files
+# are never bundled (the addon is flat).
+
+# Folder name inside the zip, and the .gpr.py / .pot package name.
+package = "MyAddon"
+
+# Optional. {package} and {version} are filled in.
+# zip_name = "{package}_v{version}.zip"
+
+[registration]
+# Becomes <package>/<package>.gpr.py. name and description are wrapped in
+# _() for translation; type/status/audience/category/tool_modes are Gramps
+# constants. Defaults: type TOOL, status EXPERIMENTAL, audience EXPERT, and
+# for tools category TOOL_DBPROC, tool_modes [TOOL_MODE_GUI].
+id = "myaddon"
+name = "My Addon"
+description = "What the tool does, as shown in the Plugin Manager."
+fname = "myaddon.py"            # must be one of the bundled modules
+toolclass = "MyAddonTool"
+optionclass = "MyAddonOptions"
+authors = ["Kevin White"]
+authors_email = ["gocaveman@gmail.com"]
+help_url = "https://gramps-project.org/wiki/index.php/Addon:MyAddon_Tool"
+# The register() call is wrapped in this inclusive Gramps version range.
+gramps_versions = ["5.2.0", "6.2.0"]
+# status = "BETA"
+# category = "TOOL_UTILS"
+# Any other register() argument, passed through as written:
+# [registration.extra]
+# requires_mod = ["somepackage"]
+
+[files]
+# Modules bundled flat into <package>/. Imports between them are rewritten
+# from each file's path, e.g. gramps/gui/x/foo.py makes
+# "from gramps.gui.x.foo import A" become "from foo import A".
+modules = [
+    "gramps/plugins/tool/myaddon*.py",
+]
+# Unit tests, bundled into <package>/tests/.
+tests = [
+    "gramps/plugins/tool/test/myaddon*_test.py",
+]
+# Non-test files the tests import (fakes, fixtures in .py form). They go in
+# <package>/tests/ too, and imports of them become package-relative.
+# test_helpers = ["gramps/plugins/tool/test/my_fakes.py"]
+
+# Files matched above that must not ship.
+# exclude = ["gramps/plugins/tool/myaddon_scratch.py"]
+
+# Lines (regexes) to leave exactly as written, e.g. a source-tree fallback
+# import inside "except ImportError:".
+# keep_unrewritten = ['^\s*from\s+gramps\.gui\.x\.foo\s+import\s*\(\s*$']
+
+# Optional fixture tree copied into <package>/tests/<target>/ as-is
+# (text files get LF newlines; images and other binaries are copied raw).
+# [files.test_data]
+# source = "gramps/plugins/tool/test/data"
+# target = "data"
+# required = ["sample.ged"]     # build fails if these are missing
+
+# Another addon this one needs at run time. Adds its id to depends_on in the
+# registration (Gramps installs and loads it first); its modules are
+# flattened like siblings but NOT bundled; tests/__init__.py also puts
+# ../<package> on sys.path. Repeat the block for more dependencies.
+# [[dependencies]]
+# id = "otheraddon"
+# package = "OtherAddon"
+# modules = ["gramps/plugins/tool/otheraddon.py"]
+
+[check]
+# Every build (and --check) lists files changed on this branch -- committed
+# since <base>, uncommitted, or untracked -- that no addon_package*.toml in
+# the repo bundles, provides or excludes, and that are not ignored here.
+# Branch to compare with. Default: detected -- of every master, main and
+# maintenance/* branch (local or remote), the one this branch differs from
+# least, i.e. the one it was started from. Set it to skip detection; a list
+# is tried in order.
+# base = "origin/maintenance/gramps61"
+ignore = [
+    "featuredocs/**",
+    "gramps/plugins/tool/tools.gpr.py",
+    "po/POTFILES.in",
+    "po/POTFILES.skip",
+]
+
+# [translations]
+# keywords = ["_", "N_", "_T_", "sgettext", "ngettext:1,2", "pgettext:1c,2"]

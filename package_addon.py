@@ -653,7 +653,6 @@ def build_translations(plan: Plan, members: dict[str, bytes], gpr: bytes) -> byt
             "--language=Python",
             "--from-code=UTF-8",
             "--add-comments=Translators",
-            f"--package-name={plan.package}",
             *(f"--keyword={kw}" for kw in plan.keywords),
             "-o",
             "template.pot",
