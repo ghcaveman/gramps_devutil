@@ -72,6 +72,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
 import zipfile
@@ -82,6 +83,12 @@ from typing import Any
 LOG = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = "addon_package.toml"
+
+# When the config names no base branch, every local or remote branch whose
+# name matches this is a candidate, and the one the branch differs from
+# least is used: that is the branch it was started from (for example
+# origin/maintenance/gramps61 rather than origin/master).
+CANDIDATE_BASE = re.compile(r"^(?:[^/]+/)?(?:master|main|maintenance/[^/]+)$")
 
 # Suffixes copied byte-for-byte from the test-data tree; any other file that
 # is not valid UTF-8 is copied raw as well.
@@ -276,7 +283,7 @@ class Plan:
     dependency_modules: list[str] = field(default_factory=list)  # rel paths
     keep_unrewritten: list[re.Pattern[str]] = field(default_factory=list)
     keywords: tuple[str, ...] = DEFAULT_KEYWORDS
-    check_base: str = "master"
+    check_base: list[str] = field(default_factory=list)
     check_ignore: list[str] = field(default_factory=list)
     excluded: list[str] = field(default_factory=list)  # rel paths
 
@@ -387,7 +394,8 @@ def load_plan(config_path: Path) -> Plan:
         )
 
     check = cfg.get("check", {})
-    plan.check_base = check.get("base", "master")
+    base = check.get("base", [])
+    plan.check_base = [base] if isinstance(base, str) else list(base)
     plan.check_ignore = list(check.get("ignore", []))
     plan.excluded = exclude
     return plan
@@ -457,6 +465,17 @@ class Rewriter:
 
         add_rules(flat, "")
         add_rules(helpers, ".")
+        # Dotted references outside import statements -- mock.patch target
+        # strings such as "gramps.plugins.tool.foo.OkDialog", or
+        # "import gramps.plugins.tool.foo" -- point at the flat module too.
+        if flat:
+            by_dotted = {_dotted(r): PurePosixPath(r).stem for r in flat}
+            self.rules.append(
+                (
+                    re.compile(rf"(?<![\w.])({_alternation(list(by_dotted))})(?!\w)"),
+                    lambda m, d=by_dotted: d[m.group(1)],
+                )
+            )
         # Anything still naming one of these through the core tree afterwards
         # (a mock.patch target string, an unusual import) is reported.
         self.leftover = re.compile(
@@ -678,21 +697,94 @@ def _git(repo_root: Path, *args: str) -> list[str] | None:
         errors="replace",
     )
     if result.returncode != 0:
+        LOG.debug(
+            "git %s failed (%s): %s",
+            " ".join(args),
+            result.returncode,
+            result.stderr.strip(),
+        )
         return None
     return [line for line in result.stdout.splitlines() if line.strip()]
 
 
-def changed_files(repo_root: Path, base: str) -> list[str] | None:
-    """
-    Files changed on this branch: committed since ``base``, plus uncommitted
-    and untracked files. ``None`` if this is not a usable git checkout.
-    """
-    committed = _git(repo_root, "diff", "--name-only", f"{base}...HEAD")
-    if committed is None:
+def _branch_changes(repo_root: Path, base: str, head: str) -> list[str] | None:
+    """Files changed on HEAD since it split from ``base`` (None on failure)."""
+    merge_base = _git(repo_root, "merge-base", base, head)
+    if not merge_base:
         return None
+    return _git(repo_root, "diff", "--name-only", merge_base[0], head)
+
+
+def changed_files(repo_root: Path, bases: list[str]) -> tuple[list[str] | None, str]:
+    """
+    Files changed on this branch: committed since it split from its base
+    branch, plus uncommitted and untracked files.
+
+    With ``bases`` empty the base is detected: of all branches matching
+    ``CANDIDATE_BASE``, the one giving the fewest changed files. Otherwise
+    the first of ``bases`` that exists is used.
+
+    Uses plain ``rev-parse``/``merge-base``/``diff A B`` calls (no ``^{}`` or
+    ``...`` syntax) so it behaves the same from any shell on Windows.
+
+    :returns: (paths, description of the base used), or
+        (None, reason the check was skipped).
+    """
+    if shutil.which("git") is None:
+        return None, "git is not on PATH"
+    if _git(repo_root, "rev-parse", "--is-inside-work-tree") is None:
+        return None, "not a git checkout"
+    head = _git(repo_root, "rev-parse", "--verify", "HEAD")
+    if not head:
+        return None, "the branch has no commits yet"
+
+    committed: list[str] | None = None
+    used = ""
+    if bases:
+        for base in bases:
+            if _git(repo_root, "rev-parse", "--verify", "--quiet", base):
+                committed = _branch_changes(repo_root, base, head[0])
+                if committed is None:
+                    return None, (
+                        f"{base} shares no history with this branch "
+                        "(shallow clone?); run with -v for git's message"
+                    )
+                used = base
+                break
+        else:
+            return None, (
+                f"none of {', '.join(bases)} exists; fix base under [check] "
+                "(run 'git branch -a' to see the names)"
+            )
+    else:
+        current = _git(repo_root, "rev-parse", "--abbrev-ref", "HEAD") or [""]
+        refs = _git(
+            repo_root,
+            "for-each-ref",
+            "--format=%(refname:short)",
+            "refs/heads",
+            "refs/remotes",
+        )
+        best: tuple[int, int, str, list[str]] | None = None
+        for order, ref in enumerate(refs or []):
+            if ref == current[0] or not CANDIDATE_BASE.match(ref):
+                continue
+            changes = _branch_changes(repo_root, ref, head[0])
+            if changes is None:
+                continue
+            key = (len(changes), order, ref, changes)
+            if best is None or key[:2] < best[:2]:
+                best = key
+        if best is None:
+            return None, (
+                "no master, main or maintenance/* branch found; set base under "
+                "[check] (run 'git branch -a' to see the names)"
+            )
+        committed, used = best[3], f"{best[2]} (detected automatically)"
+
     working = _git(repo_root, "diff", "--name-only", "HEAD") or []
     untracked = _git(repo_root, "ls-files", "--others", "--exclude-standard") or []
-    return sorted(set(committed) | set(working) | set(untracked))
+    return sorted(set(committed) | set(working) | set(untracked)), used
 
 
 def unaccounted_files(plan: Plan, changed: list[str]) -> list[str]:
@@ -721,8 +813,10 @@ def unaccounted_files(plan: Plan, changed: list[str]) -> list[str]:
         accounted |= set(other.modules.values()) | set(other.tests.values())
         accounted |= set(other.data.values()) | set(other.dependency_modules)
         accounted.add(other.config_path.name)
+        # The addon's own build output.
+        ignore.append(other.zip_name.format(package=other.package, version="*"))
         ignore += other.check_ignore + other.excluded
-    ignore += ["package_addon.py", "**/__init__.py"]
+    ignore += ["package_addon.py", "addon_package.example.toml", "**/__init__.py"]
     return [
         rel
         for rel in changed
@@ -765,10 +859,11 @@ def collect(
             LOG.warning("Unrewritten core reference: %s", leftover)
             warnings += 1
 
-    changed = changed_files(plan.repo_root, plan.check_base)
+    changed, detail = changed_files(plan.repo_root, plan.check_base)
     if changed is None:
-        LOG.info("Branch check skipped (no git, or no '%s' branch)", plan.check_base)
+        LOG.info("Branch check skipped: %s", detail)
     else:
+        LOG.info("Branch check against %s", detail)
         for rel in unaccounted_files(plan, changed):
             LOG.warning("Changed on branch but not bundled or ignored: %s", rel)
             warnings += 1
@@ -862,16 +957,71 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Only report what would be bundled and any warnings.",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging.")
+    parser.add_argument(
+        "--log",
+        type=Path,
+        default=None,
+        metavar="FILE",
+        help="Also write all output to FILE (e.g. package_output.txt).",
+    )
     return parser.parse_args(argv)
+
+
+def fix_windows_console() -> None:
+    """
+    Make a Windows console process line breaks and wrap long lines.
+
+    A console left with "processed output" off shows CR/LF as the symbols
+    ♪◙ and cuts every line at the window width. Turning the two flags back
+    on is harmless when they are already set, and the calls simply fail
+    when output is redirected to a file or pipe.
+    """
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        processed_output, wrap_at_eol = 0x0001, 0x0002
+        for std_handle in (-11, -12):  # STD_OUTPUT_HANDLE, STD_ERROR_HANDLE
+            handle = kernel32.GetStdHandle(std_handle)
+            mode = ctypes.c_uint32()
+            if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                kernel32.SetConsoleMode(
+                    handle, mode.value | processed_output | wrap_at_eol
+                )
+    except (AttributeError, OSError):
+        pass
+
+
+def setup_logging(verbose: bool, log_file: Path | None) -> None:
+    """
+    Send all messages to standard output (so a plain ``> file`` captures
+    everything, in order) and optionally to a log file as well.
+    """
+    fix_windows_console()
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            # Non-UTF-8 consoles: replace characters they cannot show
+            # instead of crashing.
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+    if log_file is not None:
+        handlers.append(logging.FileHandler(log_file, mode="w", encoding="utf-8"))
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(levelname)s: %(message)s",
+        handlers=handlers,
+        force=True,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     """Build (or check) the addon and report the result."""
     args = parse_args(argv)
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(levelname)s: %(message)s",
-    )
+    setup_logging(args.verbose, args.log)
     script_dir = Path(__file__).resolve().parent
     config = args.config or script_dir / DEFAULT_CONFIG
     if not config.is_absolute():
@@ -879,6 +1029,13 @@ def main(argv: list[str] | None = None) -> int:
     version = args.version_pos if args.version_pos is not None else args.version_opt
     try:
         plan = load_plan(config)
+        if args.log is not None:
+            # The log file is this run's own output, not a branch change.
+            try:
+                log_rel = args.log.resolve().relative_to(plan.repo_root).as_posix()
+                plan.check_ignore.append(log_rel)
+            except ValueError:
+                pass
         if args.check:
             LOG.info("Config: %s", plan.config_path)
             for label, items in (

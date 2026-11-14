@@ -78,7 +78,11 @@ tests = [
 # Every build (and --check) lists files changed on this branch -- committed
 # since <base>, uncommitted, or untracked -- that no addon_package*.toml in
 # the repo bundles, provides or excludes, and that are not ignored here.
-base = "master"
+# Branch to compare with. Default: detected -- of every master, main and
+# maintenance/* branch (local or remote), the one this branch differs from
+# least, i.e. the one it was started from. Set it to skip detection; a list
+# is tried in order.
+# base = "origin/maintenance/gramps61"
 ignore = [
     "featuredocs/**",
     "gramps/plugins/tool/tools.gpr.py",
