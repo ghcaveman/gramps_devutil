@@ -66,6 +66,7 @@ Usage::
 # -------------------------------------------------------------------------
 from __future__ import annotations
 import argparse
+import ast
 import json
 import logging
 import os
@@ -307,6 +308,43 @@ def _flat_members(rels: list[str], kind: str) -> dict[str, str]:
     return members
 
 
+# Registration fields naming something Gramps looks up in the fname module.
+CLASS_FIELDS = ("toolclass", "optionclass", "reportclass", "gramplet")
+
+
+def check_registration_names(plan: Plan) -> None:
+    """
+    Check that toolclass/optionclass/... exist in the fname module.
+
+    Gramps only looks them up when the tool is run, so a wrong name shows up
+    as an AttributeError in Gramps instead of at build time.
+
+    :raises ValueError: If a named class or function is not defined there.
+    """
+    fname = plan.registration["fname"]
+    source = (plan.repo_root / plan.modules[fname]).read_text(encoding="utf-8")
+    try:
+        tree = ast.parse(source, filename=fname)
+    except SyntaxError as error:
+        raise ValueError(f"{fname} has a syntax error: {error}") from error
+    defined: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            defined.add(node.name)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            defined.update((a.asname or a.name).split(".")[0] for a in node.names)
+        elif isinstance(node, ast.Assign):
+            defined.update(t.id for t in node.targets if isinstance(t, ast.Name))
+    classes = sorted(n.name for n in tree.body if isinstance(n, ast.ClassDef))
+    for key in CLASS_FIELDS:
+        name = plan.registration.get(key)
+        if name and name not in defined:
+            raise ValueError(
+                f"{plan.config_path.name}: registration {key} '{name}' is not "
+                f"defined in {fname}. Classes there: {', '.join(classes) or 'none'}"
+            )
+
+
 def load_plan(config_path: Path) -> Plan:
     """
     Read an ``addon_package.toml`` and resolve its globs against the repo.
@@ -364,6 +402,7 @@ def load_plan(config_path: Path) -> Plan:
             f"{config_path.name}: registration fname '{registration['fname']}' "
             "is not among the bundled modules"
         )
+    check_registration_names(plan)
 
     data_cfg = files.get("test_data")
     if data_cfg:
