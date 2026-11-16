@@ -1,0 +1,283 @@
+0 HEAD
+1 SOUR GWizardTestData
+2 NAME GWizard test data
+2 VERS 1.0
+1 DATE 16 NOV 2026
+1 SUBM @SUBM@
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+1 LANG English
+1 NOTE GWizard file-merge test tree (the "merge from" file, merged into the base tree).
+2 CONT Its record IDs (@I1@, @S1@, @M1@...) deliberately reuse the base file's IDs.
+2 CONT See gwizard_testdata_README.txt for what each record tests.
+0 @SUBM@ SUBM
+1 NAME GWizard Tester
+0 @I1@ INDI
+1 NAME Angus /McDonald/
+2 GIVN Angus
+2 SURN McDonald
+1 SEX M
+1 BIRT
+2 DATE 12 MAR 1890
+2 PLAC Inverness, Inverness-shire, Scotland
+2 SOUR @S1@
+3 PAGE Entry 112, Inverness parish register
+3 QUAY 3
+3 OBJE @M1@
+1 RESI
+2 DATE 1930
+2 PLAC Boston, Suffolk, Massachusetts, USA
+2 SOUR @S7@
+3 PAGE Ward 9, Sheet 14A, Household 212; https://www.ancestry.com/imageviewer/collections/6224/images/4547082_00412 accessed 5 May 2019
+1 DEAT
+2 DATE 4 JUN 1962
+2 PLAC Boston, Suffolk, Massachusetts, USA
+1 BURI
+1 NOTE @N3@
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME Mary /Mac Lean/
+2 GIVN Mary
+2 SURN Mac Lean
+1 SEX F
+1 BIRT
+2 DATE ABT 1892
+2 PLAC Portree, Isle of Skye, Scotland
+1 DEAT
+2 DATE 9 MAR 1970
+2 PLAC   Boston,  Suffolk,  Massachusetts, USA
+1 NOTE @N4@
+1 FAMS @F1@
+0 @I3@ INDI
+1 NAME Duncan /Mc Donald/
+2 GIVN Duncan
+2 SURN Mc Donald
+1 SEX M
+1 BIRT
+2 DATE ABT 1914
+2 PLAC Boston, Suffolk, Massachusetts, USA
+1 FAMC @F1@
+0 @I4@ INDI
+1 NAME Margaret /McDonald/
+2 GIVN Margaret
+2 SURN McDonald
+1 SEX F
+1 BIRT
+2 DATE 7 AUG 1916
+2 PLAC Boston, Suffolk, Massachusetts, USA
+1 FAMC @F1@
+0 @I5@ INDI
+1 NAME Friedrich /Vonsteuben/
+2 GIVN Friedrich
+2 SURN Vonsteuben
+1 SEX M
+1 BIRT
+2 DATE 1855
+2 PLAC Magdeburg, Saxony, Prussia
+1 EMIG
+2 DATE 1873
+2 PLAC Hamburg, Germany
+2 SOUR @S4@
+3 PAGE Page 112; https://www.ancestry.com/imageviewer/collections/1068/images/K_1714 accessed 5 May 2019
+1 DEAT
+2 DATE 12 OCT 1921
+2 PLAC Milwaukee, Milwaukee, Wisconsin, USA
+1 FAMS @F2@
+0 @I6@ INDI
+1 NAME Clara /vonHolt/
+2 GIVN Clara
+2 SURN vonHolt
+1 SEX F
+1 BIRT
+2 DATE 1860
+2 PLAC Bremen, Germany
+1 FAMS @F2@
+0 @I7@ INDI
+1 NAME Johann /Schmid/
+2 GIVN Johann
+2 SURN Schmid
+1 SEX M
+1 BIRT
+2 DATE 1850
+2 PLAC Bamberg, Bavaria, Germany
+1 CENS
+2 DATE 1900
+2 PLAC Cincinnati, Hamilton, Ohio, USA
+2 SOUR @S2@
+3 PAGE Sheet 12B, line 44
+3 QUAY 3
+1 DEAT
+2 DATE 3 APR 1910
+2 PLAC Cincinnati, Hamilton, Ohio, USA
+2 SOUR @S3@
+3 PAGE Certificate 4521
+3 OBJE @M3@
+1 FAMS @F3@
+0 @I8@ INDI
+1 NAME Anna /Bauer/
+2 GIVN Anna
+2 SURN Bauer
+1 SEX F
+1 BIRT
+2 DATE 1853
+2 PLAC Nuremberg, Bavaria, Germany
+1 FAMS @F3@
+0 @I9@ INDI
+1 NAME John /Schmidt/
+2 GIVN John
+2 SURN Schmidt
+1 SEX M
+1 BIRT
+2 DATE 1878
+2 PLAC Cincinnati, Hamilton, Ohio, USA
+1 FAMC @F3@
+0 @I10@ INDI
+1 NAME Patrick /OBrien/
+2 GIVN Patrick
+2 SURN OBrien
+1 SEX M
+1 BIRT
+2 DATE 1870
+2 PLAC Cork, County Cork, Ireland
+1 DEAT
+2 DATE 14 FEB 1931
+2 PLAC Boston, Suffolk, Massachusetts, USA
+1 BURI
+2 DATE 1931
+2 PLAC Mount Calvary Cemetery, Boston, Massachusetts, USA
+2 SOUR @S6@
+3 PAGE Memorial ID 45678
+3 OBJE @M2@
+3 NOTE @N2@
+1 NOTE @N5@
+0 @I11@ INDI
+1 NAME Bill /Turner/
+2 GIVN Bill
+2 SURN Turner
+1 SEX M
+1 BIRT
+2 DATE 1900
+2 PLAC Leeds, Yorkshire, England
+1 OCCU Weaver
+1 OBJE @M4@
+1 FAMS @F4@
+0 @I12@ INDI
+1 NAME Elizabeth /Turner/
+2 GIVN Elizabeth
+2 SURN Turner
+1 NAME Elizabeth /Harris/
+2 GIVN Elizabeth
+2 SURN Harris
+2 TYPE birth
+1 SEX F
+1 BIRT
+2 DATE 1902
+2 PLAC Leeds, Yorkshire, England
+1 FAMS @F4@
+0 @I13@ INDI
+1 NAME Thomas /Devault/
+2 GIVN Thomas
+2 SURN Devault
+1 SEX M
+1 BIRT
+2 DATE 1868
+2 PLAC Lancaster, Lancaster, Pennsylvania, USA
+0 @I14@ INDI
+1 NAME Zoe /Mueller/
+2 GIVN Zoe
+2 SURN Mueller
+1 SEX F
+1 BIRT
+2 DATE 1885
+2 PLAC Zurich, Switzerland
+0 @I15@ INDI
+1 NAME Heinrich /Schmidt/
+2 GIVN Heinrich
+2 SURN Schmidt
+1 SEX M
+1 BIRT
+2 DATE 1880
+2 PLAC Cincinnati, Hamilton, Ohio, USA
+1 FAMC @F3@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 MARR
+2 DATE 15 JUN 1912
+2 PLAC Inverness, Inverness-shire, Scotland
+1 MARR
+1 CHIL @I3@
+1 CHIL @I4@
+0 @F2@ FAM
+1 HUSB @I5@
+1 WIFE @I6@
+1 MARR
+2 DATE 1880
+2 PLAC Bremen, Germany
+0 @F3@ FAM
+1 HUSB @I7@
+1 WIFE @I8@
+1 MARR
+2 DATE 1875
+2 PLAC Cincinnati, Hamilton, Ohio, USA
+1 CHIL @I15@
+1 CHIL @I9@
+0 @F4@ FAM
+1 HUSB @I11@
+1 WIFE @I12@
+1 MARR
+2 DATE 1925
+2 PLAC Leeds, Yorkshire, England
+2 SOUR @S5@
+3 PAGE Vol. 9b, page 1102
+0 @S1@ SOUR
+1 TITL Scotland, Births and Baptisms, 1564-1950
+1 REPO @R1@
+0 @S2@ SOUR
+1 TITL 1900 United States Federal Census
+1 AUTH United States of America, Bureau of the Census
+1 REPO @R2@
+0 @S3@ SOUR
+1 TITL FamilySearch.org - Ohio Death Certificates, 1908-1953; cert 4521
+0 @S4@ SOUR
+1 TITL Hamburg Passenger Lists, 1850-1934
+1 REPO @R2@
+0 @S5@ SOUR
+1 TITL England & Wales, Civil Registration Marriage Index, 1916-2005
+1 REPO @R2@
+0 @S6@ SOUR
+1 TITL Find a Grave Index
+1 REPO @R3@
+0 @S7@ SOUR
+1 TITL 1930 United States Federal Census
+1 REPO @R2@
+0 @R1@ REPO
+1 NAME FamilySearch
+0 @R2@ REPO
+1 NAME Ancestry.com
+0 @R3@ REPO
+1 NAME Find a Grave
+0 @N2@ NOTE https://www.findagrave.com/memorial/45678/patrick-obrien
+0 @N3@ NOTE Tag recognized but not supported: _MILT (Military service) on line 88
+0 @N4@ NOTE
+1 CONT
+0 @N5@ NOTE Patrick passed away exactly on his 61st birthday.
+0 @M1@ OBJE
+1 FILE I00001_McDonald_Angus-Birth_certificate_of_Angus_McDonald-1890.png
+2 FORM png
+2 TITL Birth certificate of Angus McDonald, 1890
+0 @M2@ OBJE
+1 FILE C:\Users\GWizardTester\Pictures\obrien_grave_1931.jpg
+2 FORM jpg
+2 TITL Grave marker of Patrick OBrien, 1931
+0 @M3@ OBJE
+1 FILE C:\gramps_dev\gramps_gwizard_mediafix_plugin\images\Downloads\Ohio death cert Johann Schmid.jpg
+2 FORM jpg
+2 TITL Death certificate of Johann Schmid, 1910
+0 @M4@ OBJE
+1 FILE I00011_Turner_Bill-Portrait_of_Bill_Turner-1925.jpg
+2 FORM jpg
+2 TITL Portrait of Bill Turner, 1925
+0 TRLR
