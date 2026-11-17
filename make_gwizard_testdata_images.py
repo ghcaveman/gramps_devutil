@@ -20,7 +20,7 @@
 #
 
 """
-Create the media files used by gwizard_base.ged and gwizard_mergefrom.ged.
+Create the media files used by gwizard_data_base.ged and gwizard_mergefrom.ged.
 
 Usage::
 

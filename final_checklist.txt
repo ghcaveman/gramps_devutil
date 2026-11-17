@@ -1,6 +1,6 @@
 black format - black .
 Check file headers
-Any grizard files named gw_*
+Any gwizard files named gw_*
 Common changes put into same file
 Squash?
 Does the feature need a [help]?

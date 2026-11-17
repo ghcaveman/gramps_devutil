@@ -1,36 +1,47 @@
 #!/usr/bin/env bash
 
 # ---------------------------------------------------------------------------
-# build_gwizard_mediafix_wiki.bash
+# create_example_wiki.bash -- TEMPLATE for a per-feature wiki build script
 # ---------------------------------------------------------------------------
-# Helper script that runs the full documentation pipeline for the
-# "gwizard_mediafix" feature.
+# Runs the full documentation pipeline in featuredocs/build_feature_docs.py
+# for one feature:
+#   1) --prepare  writes featuredocs/<slug>_prompt.txt for your AI assistant,
+#                 and a starter featuredocs/README_<slug>.md if there isn't
+#                 one yet.
+#   2) --build    converts README_<slug>.md to <slug>.mediawiki, adds the
+#                 standard header/footer, and audits the screenshots (the
+#                 audit is also saved to <slug>_image_audit.txt).
 #
-# It performs the two stages defined by featuredocs/build_feature_docs.py:
-#   1) --prepare – generate the AI prompt and starter README (if not already
-#      present).
-#   2) --build   – convert the README to MediaWiki, prepend/append the
-#      standard header/footer, and run the image‑audit checker.
-#
-# The script also ensures that the audit output is captured in a side‑car
-# text file (gwizard_mediafix_image_audit.txt) – this behaviour is added by
-# the patched build_feature_docs.py.
-#
-# Usage:
-#   ./featuredocs/build_gwizard_mediafix_wiki.bash
-#
-# You can adjust the parent branch if you need a different diff base.
+# To use it for a new feature, in the feature repo:
+#   1. Copy this file, replacing "example" with the feature's slug:
+#        cp featuredocs/create_example_wiki.bash \
+#           featuredocs/create_my_feature_wiki.bash
+#   2. Edit FEATURE, PLUGIN_DISPLAY_NAME and PARENT_BRANCH below.
+#   3. Commit the copy in the feature repo. It belongs to that feature, so it
+#      is not ignored there (only this template is).
+#   4. Run it from the repo root:
+#        ./featuredocs/create_my_feature_wiki.bash
+#   5. Paste <slug>_prompt.txt into your AI assistant, save its answer as
+#      README_<slug>.md, take the screenshots it asks for, and run the
+#      script again to rebuild the .mediawiki page.
 # ---------------------------------------------------------------------------
 
 set -euo pipefail
 
-# Feature slug – must match the name used throughout the docs.
-FEATURE="gwizard_mediafix"
-PLUGIN_DISPLAY_NAME="GWizard Media Fix"
+# ---- Edit these three values for your feature ----------------------------
+# Feature slug. It names every generated file (README_<slug>.md,
+# <slug>_prompt.txt, <slug>.mediawiki, <slug>_image_audit.txt) and the
+# screenshots (images/<slug>-<short-name>.png), so use the same slug
+# everywhere: lower case with underscores, e.g. "my_feature".
+FEATURE="example"
 
-# Parent branch for the isolated git diff.  Adjust if you work off a different
-# base (e.g. a release branch).
+# Name shown in the wiki page's infobox and intro, e.g. "My Feature".
+PLUGIN_DISPLAY_NAME="Example Feature"
+
+# Branch the feature was started from. Only changes made since this branch
+# are documented.
 PARENT_BRANCH="functionality_base"
+# ---------------------------------------------------------------------------
 
 # Resolve the repository root (the directory that contains the top‑level
 # "gramps" folder).  This script lives in "featuredocs/", so the repo root is
@@ -39,7 +50,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ---- changed_files.txt lifecycle (mirrors check_banner.bash) --------------
 # Allow the list file location to be overridden via the environment, e.g.
-#   CHANGED_FILE=/tmp/my_changed_files.txt ./build_gwizard_mediafix_wiki.bash
+#   CHANGED_FILE=/tmp/my_changed_files.txt ./featuredocs/create_<slug>_wiki.bash
 CHANGED_FILE="${CHANGED_FILE:-changed_files.txt}"
 
 # Remember whether the list file existed before we started so we can clean up
@@ -77,7 +88,7 @@ python "$REPO_ROOT/featuredocs/build_feature_docs.py" \
     --prepare
 
 # Run the build step – this generates the MediaWiki file and runs the image
-# audit.  The audit output is saved to "gwizard_mediafix_image_audit.txt" by the
+# audit.  The audit output is saved to "<slug>_image_audit.txt" by the
 # patched Python script.
 python "$REPO_ROOT/featuredocs/build_feature_docs.py" \
     "$FEATURE" \

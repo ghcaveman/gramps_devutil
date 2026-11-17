@@ -41,7 +41,7 @@ Workflow:
 
 Usage:
   1. Prepare AI prompt and starter README_<feature>.md:
-       python3 featuredocs/build_feature_docs.py MyFeature --parent maintenance/gramps61 --prepare
+       python3 featuredocs/build_feature_docs.py MyFeature --parent functionality_base --prepare
 
   2. Build final .mediawiki and run missing-image check:
        python3 featuredocs/build_feature_docs.py MyFeature --build
@@ -51,7 +51,7 @@ Usage:
 
 Options:
   --filelist PATH   Path to changed_files.txt (default: ./changed_files.txt)
-  --parent BRANCH   Parent git branch for isolated diff (default: maintenance/gramps61)
+  --parent BRANCH   Parent git branch for isolated diff (default: functionality_base)
   --plugin-display-name NAME   Display name used to fill the header template
   --prepare         Generate AI prompt from changed_files.txt + git diff and init README_<feature>.md
   --build           Convert README_<feature>.md -> <feature>.mediawiki and run image check
@@ -561,8 +561,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--parent",
-        default="maintenance/gramps61",
-        help="Parent git branch to diff against (default: maintenance/gramps61)",
+        default="functionality_base",
+        help="Parent git branch to diff against (default: functionality_base)",
     )
     parser.add_argument(
         "--prepare",

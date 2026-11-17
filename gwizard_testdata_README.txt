@@ -1,31 +1,35 @@
-GWizard test data: gwizard_base.ged and gwizard_mergefrom.ged
+GWizard test data: gwizard_data_base.ged and gwizard_mergefrom.ged
 ==============================================================
 
 Files
 -----
-C:\gramps_dev\gramps_gwizard_filemerge_plugin\
-    gwizard_base.ged                  the tree you import first
+The master copies live in gramps_devutil. Copy them into the root of each
+feature repo that uses them (for example gramps_gwizard_filemerge_plugin or
+gramps_gwizard_mediafix_plugin), keeping the images\ folder layout.
+
+C:\gramps_dev\gramps_devutil\
+    gwizard_data_base.ged             the tree you import first
     gwizard_mergefrom.ged             the file you merge into it with GWizard File Merge
     make_gwizard_testdata_images.py   regenerates the images (needs Pillow)
     gwizard_testdata_README.txt       this file
-C:\gramps_dev\gramps_gwizard_mediafix_plugin\images\
+C:\gramps_dev\gramps_devutil\images\
     FamilyTree\   the media base path. Holds the files the GEDCOMs reference
                   by relative path, plus one file no record uses and one
                   deliberately corrupt file.
     Downloads\    files referenced by absolute path, outside the base path.
 
-The older grizard_base.ged / grizard_mergefrom.ged are left untouched.
-
-
 How to load them
 ----------------
 1. Create a new, empty family tree and open it.
-2. BEFORE importing, set the media base path to
+2. BEFORE importing, set the media base path to the FamilyTree folder in the
+   feature repo you are testing, for example
        C:\gramps_dev\gramps_gwizard_mediafix_plugin\images\FamilyTree
+   Don't point it at the gramps_devutil copy: Media Fix renames and moves
+   these files, and the gramps_devutil copies are the tracked originals.
    (Edit > Preferences > General > "Base path for relative media paths").
    Gramps' GEDCOM import looks for each media file there. If the base path is
    not set first, every media record gets a "Could not import ..." note.
-3. Import gwizard_base.ged.
+3. Import gwizard_data_base.ged.
 4. Run Media Fix and Citation Fix on it if you are testing those (see below),
    or go straight to Tools > Family Tree Processing > GWizard File Merge and
    pick gwizard_mergefrom.ged.
@@ -82,7 +86,7 @@ two-line note. Neither should be listed in the merge dialog.
 
 Citation Fix conditions
 -----------------------
-Base (gwizard_base.ged):
+Base (gwizard_data_base.ged):
   Unpack Conflated Source
     S3  "Ancestry.com - 1920 United States Federal Census, page 7 line 22"
     S4  "<i>Newspapers.com</i> Obituary Index"               (markup)
