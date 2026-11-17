@@ -29,6 +29,16 @@ How to load them
    (Edit > Preferences > General > "Base path for relative media paths").
    Gramps' GEDCOM import looks for each media file there. If the base path is
    not set first, every media record gets a "Could not import ..." note.
+   Keep the images in C:\gramps_dev\gramps_gwizard_mediafix_plugin\images,
+   not elsewhere (for example inside the Gramps source tree): the absolute
+   paths in the GEDCOMs (Clara von Holt's portrait, Downloads\scan0042.jpg,
+   and "Downloads\Ohio death cert Johann Schmid.jpg" in merge_from) point
+   there. When Gramps can't find an absolute path on import, it drops the
+   drive letter, so the record ends up missing with a path such as
+   \gramps_dev\gramps_gwizard_mediafix_plugin\images\Downloads\scan0042.jpg.
+   Media Fix moves files out of images\ when it consolidates, so run
+   make_gwizard_testdata_images.py (it writes to that folder by default)
+   before each test run to put them back.
 3. Import gwizard_data_base.ged.
 4. Run Media Fix and Citation Fix on it if you are testing those (see below),
    or go straight to Tools > Family Tree Processing > GWizard File Merge and

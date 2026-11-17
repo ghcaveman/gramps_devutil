@@ -551,7 +551,14 @@ class Rewriter:
 #
 # -------------------------------------------------------------------------
 def build_gpr(plan: Plan, version: str) -> bytes:
-    """Render ``<package>.gpr.py`` from ``[registration]``."""
+    """
+    Render ``<package>.gpr.py`` from ``[registration]``.
+
+    The file does not define ``_``: Gramps runs a ``.gpr.py`` with a ``_``
+    that already uses the addon's ``locale/`` folder, and redefining it (as
+    ``glocale.translation.gettext``) would leave the name and description
+    untranslated.
+    """
     reg = dict(plan.registration)
     extra = dict(reg.get("extra", {}))
     reg.setdefault("type", "TOOL")
@@ -609,10 +616,10 @@ def build_gpr(plan: Plan, version: str) -> bytes:
         "from gramps.gen.plug._pluginreg import (",
         *[f"    {c}," for c in sorted(constants)],
         ")",
-        "from gramps.gen.const import GRAMPS_LOCALE as glocale",
         "from gramps.version import major_version, VERSION_TUPLE",
         "",
-        "_ = glocale.translation.gettext",
+        "# _ is provided by Gramps when it loads this file, already set up for",
+        "# this addon's translations (its locale/ folder); do not redefine it.",
         "",
         f"if {tup(low)} <= VERSION_TUPLE <= {tup(high)}:",
         "    register(",
